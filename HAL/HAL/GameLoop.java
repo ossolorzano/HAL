@@ -24,11 +24,15 @@ public class GameLoop {
 	private int[] bork;
 	private String[][] moveConversion;
 	private boolean aiFirst;
+	private int xWingWeight, tieFighterWeight, eXWingWeight;
 	
 	public void start(){
 		createMoveConversionTable();
 		legal=false;
 		bork = new int[]{-1,-1,-1,-1};
+		xWingWeight = 19;
+		tieFighterWeight = 48;
+		eXWingWeight = 7;
 		humanSide=true;
 		aiSide=true;
 		board = new int[7][7];
@@ -54,7 +58,7 @@ public class GameLoop {
 				updateHumanMove();
 				printBoard();
 				//printPieces();
-				if(checkAIGameover()){	//check gameover
+				if(checkAIGameover(mg.findAvailableAIMoves(board, aiMobilePieces, aiSide))){	//check gameover
 					break;
 				}
 			}
@@ -73,7 +77,7 @@ public class GameLoop {
 			updateAIMove();
 			//printPieces();
 			printBoard();
-			if(checkPlayerGameover()){	//check gameover
+			if(checkPlayerGameover(mg.findAvailableHumanMoves(board, playerMobilePieces, humanSide))){	//check gameover
 				break;
 			}
 		}
@@ -466,13 +470,15 @@ public class GameLoop {
 	//MIN
 	public int min(int depth, boolean humanSide, boolean aiSide, int curBest){
 		int best = 9999;
+		ArrayList<Integer> moves = mg.findAvailableHumanMoves(board, playerMobilePieces,humanSide);
+		ArrayList<Integer> otherMoves = mg.findAvailableAIMoves(board, aiMobilePieces,aiSide);
 		if(System.currentTimeMillis()-startTime>5000){
 			return -10000;	//special int for timeout
 		}
-		else if(checkAIGameover()){
+		else if(checkAIGameover(otherMoves)){
 			return -9998+depth;
 		}
-		else if(checkPlayerGameover()){
+		else if(checkPlayerGameover(moves)){
 			return 9998-depth;
 		}
 		else if(depth==maxDepth){
@@ -480,8 +486,10 @@ public class GameLoop {
 		}
 		else{
 			int score;
-			ArrayList<Integer> moves = mg.findAvailableHumanMoves(board, playerMobilePieces,humanSide);
 			for(int index=0; index<moves.size(); index+=5){
+				if(best==10000 || best==-10000){
+					break;
+				}
 				int prevStart= board[moves.get(index+1).intValue()][moves.get(index+2).intValue()];	//Gets piece thats moving
 				int prevEnd = board[moves.get(index+3).intValue()][moves.get(index+4).intValue()]; //Gets what used to be at that location. In case of captures
 				board[moves.get(index+3).intValue()][moves.get(index+4).intValue()]=prevStart;	//Make move
@@ -512,7 +520,10 @@ public class GameLoop {
 				else{
 					score=max(depth+1, true, aiSide, best)+depth;
 				}
-				if(score<best){
+				if(score==10000 || score==-10000){	//Timeout set
+					best=score;
+				}
+				else if(score<best){
 					best=score;
 				}
 				board[moves.get(index+1).intValue()][moves.get(index+2).intValue()]=prevStart;	//Undo move
@@ -537,13 +548,15 @@ public class GameLoop {
 	//MAX
 	public int max(int depth, boolean humanSide, boolean aiSide, int curBest){
 		int best=-9999;
+		ArrayList<Integer> moves = mg.findAvailableAIMoves(board, aiMobilePieces, aiSide);
+		ArrayList<Integer> otherMoves = mg.findAvailableHumanMoves(board, playerMobilePieces, humanSide);
 		if(System.currentTimeMillis()-startTime>5000){
 			return 10000;	//special int for timeout
 		}
-		else if(checkAIGameover()){
+		else if(checkAIGameover(moves)){
 			return -9998+depth;
 		}
-		else if(checkPlayerGameover()){
+		else if(checkPlayerGameover(otherMoves)){
 			return 9998-depth;
 		}
 		else if(depth==maxDepth){
@@ -551,8 +564,10 @@ public class GameLoop {
 		}
 		else{
 			int score;
-			ArrayList<Integer> moves = mg.findAvailableAIMoves(board, aiMobilePieces, aiSide);
 			for(int index=0; index<moves.size(); index+=5){
+				if(best==10000 || best==-10000){
+					break;
+				}
 				int prevStart= board[moves.get(index+1).intValue()][moves.get(index+2).intValue()];	//Gets piece thats moving
 				int prevEnd = board[moves.get(index+3).intValue()][moves.get(index+4).intValue()]; //Gets what used to be at that location. In case of captures
 				
@@ -584,7 +599,10 @@ public class GameLoop {
 				else{
 					score=min(depth+1, humanSide, true, best)-depth;
 				}
-				if(score>best){
+				if(score==10000 || score==-10000){	//Timeout set
+					best=score;
+				}
+				else if(score>best){
 					best=score;
 				}
 				board[moves.get(index+1).intValue()][moves.get(index+2).intValue()]=prevStart;	//Undo move
@@ -614,14 +632,9 @@ public class GameLoop {
 		int pXWings=0;
 		int pEXWings=0;
 		int pTieFighters=0;
-		int piecesLeft=0;
-		int enemyPiecesLeft=0;
 		
 		//numbers from AI Mobile Pieces left
 		for(int pieceNum=0; pieceNum<aiMobilePieces.length;pieceNum++){
-			if(aiMobilePieces[pieceNum][0]!=0){
-				piecesLeft++;
-			}
 			if(aiMobilePieces[pieceNum][0]==4){ //AIXWings
 				aiXWings++;
 			}
@@ -634,9 +647,6 @@ public class GameLoop {
 		}
 		//Numbers from Player Mobile Pieces left
 		for(int pieceNum=0; pieceNum<playerMobilePieces.length; pieceNum++){
-			if(playerMobilePieces[pieceNum][0]!=0){
-				enemyPiecesLeft++;
-			}
 			if(playerMobilePieces[pieceNum][0]==9){ //pXWings
 				pXWings++;
 			}
@@ -648,11 +658,11 @@ public class GameLoop {
 			}
 		}
 		
-		eval=(2*piecesLeft+2*aiXWings+1*aiEXWings+3*aiTieFighters)-(2*enemyPiecesLeft+2*pXWings+1*pEXWings+3*pTieFighters);
+		eval=(xWingWeight*aiXWings+eXWingWeight*aiEXWings+tieFighterWeight*aiTieFighters)-(xWingWeight*pXWings+eXWingWeight*pEXWings+tieFighterWeight*pTieFighters);
 		return eval;
 	}
 	//Check Gameover
-	public boolean checkAIGameover(){
+	public boolean checkAIGameover(ArrayList<Integer> moves){
 		//RULES:
 		//Game is over when:
 		//if it is his/her opponent's turn but the opponent has no legal moves
@@ -663,14 +673,14 @@ public class GameLoop {
 			return true;
 		}
 		//check if no AI moves left
-		else if(mg.findAvailableAIMoves(board, aiMobilePieces, aiSide).isEmpty()){
+		else if(moves.isEmpty()){
 			return true;
 		}
 		else{
 			return false;
 		}
 	}
-	public boolean checkPlayerGameover(){
+	public boolean checkPlayerGameover(ArrayList<Integer> moves){
 		//RULES:
 		//Game is over when:
 		//if it is his/her opponent's turn but the opponent has no legal moves
@@ -681,7 +691,7 @@ public class GameLoop {
 			return true;
 		}
 		//check if no Player moves left
-		else if(mg.findAvailableHumanMoves(board, playerMobilePieces, humanSide).isEmpty()){
+		else if(moves.isEmpty()){
 			return true;
 		}
 		else{

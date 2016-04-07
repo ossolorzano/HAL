@@ -454,7 +454,7 @@ public class MoveGenerator {
 				boolean leftUp=true;
 				boolean rightDown=true;
 				boolean leftDown=true;
-				while(rightUp || leftUp || rightDown){
+				while(rightUp || leftUp || rightDown || leftDown){
 					incX++;
 					//RIGHTUP
 					if(rightUp){
